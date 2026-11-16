@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 左上角大字的默认值；用户可在界面上改，改过就存进 SharedPreferences -->
+    <string name="header_title_default">dywatch</string>
+
+    <!-- 无障碍名称：读屏器念的是这些，改文案时同步改这里 -->
+    <string name="cd_back">返回</string>
+    <string name="cd_go_live">去看直播</string>
+    <string name="cd_alert_ok">知道了，关闭提醒</string>
+    <string name="cd_alert_go">去看直播，打开直播间</string>
+    <string name="cd_monitor_switch">开播监控与提醒</string>
+    <string name="cd_boost_switch">15 秒加速检测开播</string>
+    <string name="cd_refresh">取一次所有人的粉丝数</string>
+</resources>

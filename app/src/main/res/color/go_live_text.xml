@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 去看直播按钮文字:可点白字,禁用灰字 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="true" android:color="@color/on_accent" />
+    <item android:color="@color/go_live_text_off" />
+</selector>

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ground">
+
+    <ImageView
+        android:id="@+id/wallpaper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
+    <View
+        android:id="@+id/scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/scrim"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/root_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/ink"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_add"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/accent_soft"
+                android:text="添加"
+                android:textColor="@color/accent"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/refresh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/cd_refresh"
+                android:text="刷新" />
+        </LinearLayout>
+
+        <!-- 取数结果：内容和监控状态分开两行，内容一变读屏器念一次 -->
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:accessibilityLiveRegion="polite"
+            android:text="正在加载抖音页面…"
+            android:textColor="@color/ink_3"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tv_watch_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="开播监控"
+                android:textColor="@color/ink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_watch_status"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:layout_weight="1"
+            android:accessibilityLiveRegion="polite"
+            android:textColor="@color/ink_3"
+            android:text="启动中…"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_captcha"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:backgroundTint="@color/tertiary"
+                android:text="解验证"
+                android:paddingLeft="2dp"
+                android:paddingRight="2dp"
+                android:textColor="@color/on_tertiary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btn_wallpaper"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/tertiary"
+                android:text="壁纸"
+                android:paddingLeft="2dp"
+                android:paddingRight="2dp"
+                android:textColor="@color/on_tertiary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btn_health"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/tertiary"
+                android:text="体检"
+                android:paddingLeft="2dp"
+                android:paddingRight="2dp"
+                android:textColor="@color/on_tertiary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btn_test_notify"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_weight="1"
+                android:backgroundTint="@color/tertiary"
+                android:text="测试提醒"
+                android:paddingLeft="2dp"
+                android:paddingRight="2dp"
+                android:textColor="@color/on_tertiary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="12dp"
+            android:layout_weight="1" />
+
+    </LinearLayout>
+
+</FrameLayout>

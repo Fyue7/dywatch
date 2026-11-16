@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  视觉 token 的唯一来源（DESIGN.md 的代码侧落地）。
+  规则：布局与代码只引用这里，不再散落十六进制字面量。
+  括号内为该色在对应底色上的对比度，正文文字要求 >= 4.5:1。
+-->
+<resources>
+    <!-- 底色与面 -->
+    <color name="ground">#F7F5FB</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_line">#ECE8F4</color>
+    <color name="scrim">#4D141020</color>
+
+    <!-- 文字（紫调中性，不用纯灰） -->
+    <color name="ink">#221D38</color>
+    <color name="ink_2">#5A5470</color>
+    <!-- 弱化文字：白底 6.0:1，替代原来的 #888888(3.5:1 不达标) 与 #6E6790 -->
+    <color name="ink_3">#665E80</color>
+    <color name="on_accent">#FFFFFF</color>
+
+    <!-- 强调色：监控与主操作 -->
+    <color name="accent">#5B4C9E</color>
+    <color name="accent_soft">#EDE9F7</color>
+    <color name="tertiary">#B7B1CF</color>
+    <color name="on_tertiary">#3B3160</color>
+    <color name="alert_bg">#3B3160</color>
+
+    <!-- 语义色 -->
+    <color name="live">#E5484D</color>
+    <!-- 徽标底：为了白字 11sp 达到 5.5:1，比 live 略深 -->
+    <color name="live_strong">#C7282F</color>
+    <!-- 涨跌：up 由 #12894F 调深到 4.99:1 -->
+    <color name="up">#10804A</color>
+    <color name="up_soft">#E7F3EC</color>
+    <color name="down">#D03050</color>
+    <color name="warn">#B7791F</color>
+
+    <!-- 组件 -->
+    <color name="chart_grid">#DDD8EE</color>
+    <color name="go_live_off">#E7E4EF</color>
+    <color name="go_live_text_off">#A9A4B8</color>
+    <color name="overlay_dim">#66000000</color>
+</resources>

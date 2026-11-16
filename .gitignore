@@ -1,0 +1,28 @@
+# 构建产物与本地环境
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 签名材料：绝不入库
+*.jks
+*.keystore
+keystore.properties
+signing/
+
+# 个人版私货：主播名单、导出数据、探针记录（公开仓库里不该出现）
+app/src/main/assets/seed_accounts.json
+app/src/personal/
+.godaudits/
+personal/
+*.bak
+*.bak.*
+
+# 系统与工具
+.DS_Store
+Thumbs.db
+*.log

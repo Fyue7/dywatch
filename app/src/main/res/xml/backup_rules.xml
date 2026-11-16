@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 30 以下的全量备份规则：不把 WebView 的 cookie 存储备份出去（签名链路的信任底座） -->
+<full-backup-content>
+    <exclude domain="webview" />
+</full-backup-content>

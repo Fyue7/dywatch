@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      固定浅色：整套配色是浅色单套（ground #F7F5FB + 白卡），没有 values-night 对应实现。
+      原先继承 DayNight，系统深色模式下 Material 组件会按暗色派生颜色，与本套硬编码浅色底打架
+      （半套暗色）。暗色主题要么整套做 values-night，要么就明确不做——这里先锁死浅色。
+    -->
+    <style name="Theme.DyWatch" parent="Theme.Material3.Light.NoActionBar" />
+</resources>
