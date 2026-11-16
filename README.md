@@ -70,6 +70,20 @@
 ```
 
 依赖已锁定：`app/gradle.lockfile` + `gradle/verification-metadata.xml`，Gradle wrapper 带 sha256 校验。
+
+### 发布用的正式签名
+
+`assembleRelease` 会用仓库根目录的 `keystore.properties`（**不入库**）签名；没有这个文件时 release 不签名，
+`assembleDebug` 仍用本机 debug keystore，所以别人 clone 下来照样能构建、能跑。
+
+```properties
+storeFile=/absolute/path/to/dywatch-release.jks
+storePassword=***
+keyAlias=dywatch
+keyPassword=***
+```
+
+⚠️ keystore 一旦丢失或更换，已安装的用户（包括你自己）就无法覆盖升级，只能卸载重装。
 升级依赖后需要 `./gradlew :app:dependencies --write-locks` 并重写校验元数据。
 
 ## 已知限制

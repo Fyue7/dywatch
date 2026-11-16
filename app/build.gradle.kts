@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -15,6 +17,13 @@ val personalName = (findProperty("personalName") as String?) ?: "demo"
 // 版本名可覆盖：公开版从 1.0.0 起，个人版接着自己的号往下走（versionCode 两边共用）
 val buildVersionName = (findProperty("verName") as String?) ?: "1.0.0"
 
+// 正式签名：根目录有 keystore.properties 才启用（该文件与 jks 都不入库）；
+// 没有时 release 退回不签名，debug 仍用本机 debug keystore —— 别人 clone 下来照样能构建
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
 android {
     namespace = "com.dsh.dywatch"
     compileSdk = 34
@@ -30,9 +39,23 @@ android {
         resValue("string", "header_title_default", if (personalBuild) personalName else "dywatch")
     }
 
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystoreProps.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
