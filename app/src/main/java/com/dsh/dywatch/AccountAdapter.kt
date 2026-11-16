@@ -95,13 +95,22 @@ class AccountAdapter(
         }.joinToString(" · ")
 
         val cur = store.latest(a.secUid)
+        // 「直播中」跟事件走，不跟数字走：监控检测每轮都会把是否在播记进 prefs（30 分钟内有效），
+        // 这里优先用它，样本里的 live 只当兜底——否则下播后要等到下次手点刷新，标记才会消失。
+        val ctxForLive = holder.itemView.context
+        val (prefLive, prefTs) = WatchPrefs.liveState(ctxForLive, a.secUid)
+        val liveFresh = prefTs > 0 && System.currentTimeMillis() - prefTs <= 30 * 60 * 1000L
+        val detectedLive = liveFresh && prefLive
+        val detectedRoom = if (detectedLive) WatchPrefs.liveRoom(ctxForLive, a.secUid) else ""
         if (cur == null) {
             holder.follower.text = "—"
             holder.delta.text = "还没有取过数"
             holder.delta.setTextColor(0xFF665E80.toInt())
-            holder.meta.text = "点右上「刷新」取一次" +
+            holder.liveBadge.visibility = if (detectedLive) View.VISIBLE else View.GONE
+            holder.goLive.isEnabled = detectedLive
+            holder.goLive.setOnClickListener { if (detectedLive) DeepLink.openLiveRoom(ctxForLive, detectedRoom) }
+            holder.meta.text = (if (detectedLive) "直播中" else "点右上「刷新」取一次") +
                 if (stateText.isEmpty()) "" else " · $stateText"
-            holder.goLive.isEnabled = false
             return
         }
 
@@ -125,13 +134,16 @@ class AccountAdapter(
             holder.delta.setTextColor(0xFF665E80.toInt())
         }
 
-        val live = cur.live > 0 || cur.roomId > 0L
+        val sampleLive = cur.live > 0 || cur.roomId > 0L
+        // 检测到的最新状态优先（窗口 30 分钟），样本里的当兜底
+        val live = if (liveFresh) prefLive else sampleLive
         holder.liveBadge.visibility = if (live) View.VISIBLE else View.GONE
 
         // 去看直播:平时灰色禁用,开播点亮;点击深链直达直播间(roomIdStr 缺失时兜底拉起抖音主程序)
+        val liveRoom = if (live && detectedRoom.isNotBlank()) detectedRoom else cur.roomIdStr
         holder.goLive.isEnabled = live
         holder.goLive.setOnClickListener {
-            if (live) DeepLink.openLiveRoom(ctx, cur.roomIdStr)
+            if (live) DeepLink.openLiveRoom(ctx, liveRoom)
         }
 
         val liveText = if (live) "直播中" else "未开播"

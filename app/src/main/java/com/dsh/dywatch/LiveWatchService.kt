@@ -347,7 +347,7 @@ class LiveWatchService : Service() {
                 val isLive = p.live > 0 || p.roomId > 0
                 val prevLive = if (lastLiveState.containsKey(p.secUid)) lastLiveState[p.secUid]!! else wasLive
                 lastLiveState[p.secUid] = isLive
-                WatchPrefs.setLiveState(this, p.secUid, isLive, now)
+                WatchPrefs.setLiveState(this, p.secUid, isLive, now, p.roomIdStr)
                 when (kind) {
                     // 监控轮询：只为判定开播，一个数字都不写
                     FetchKind.DETECT -> if (!prevLive && isLive) fireAlert(p)
@@ -453,7 +453,7 @@ class LiveWatchService : Service() {
                     okN++
                     val prev = prevLive(secUid, now)
                     lastLiveState[secUid] = st.live
-                    WatchPrefs.setLiveState(this, secUid, st.live, now)
+                    WatchPrefs.setLiveState(this, secUid, st.live, now, st.roomId)
                     if (st.live && !prev) {
                         // 探测结果自带精确 room_id，深链比签名结果还准
                         fireAlertBy(secUid, "", st.roomId)

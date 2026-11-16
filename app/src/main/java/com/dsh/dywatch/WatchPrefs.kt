@@ -122,9 +122,17 @@ object WatchPrefs {
     fun liveState(ctx: Context, secUid: String): Pair<Boolean, Long> =
         Pair(sp(ctx).getBoolean("live_$secUid", false), sp(ctx).getLong("livets_$secUid", 0))
 
-    fun setLiveState(ctx: Context, secUid: String, live: Boolean, ts: Long) {
-        sp(ctx).edit().putBoolean("live_$secUid", live).putLong("livets_$secUid", ts).apply()
+    fun setLiveState(ctx: Context, secUid: String, live: Boolean, ts: Long, room: String = "") {
+        sp(ctx).edit()
+            .putBoolean("live_$secUid", live)
+            .putLong("livets_$secUid", ts)
+            .putString("liveroom_$secUid", room)
+            .apply()
     }
+
+    /** 检测轮拿到的房间号（无则空串）：卡片的「去看直播」优先用它，比样本里的新 */
+    fun liveRoom(ctx: Context, secUid: String): String =
+        sp(ctx).getString("liveroom_$secUid", "") ?: ""
 
     /* ===== 更新检查留痕：体检页显示，主界面状态行提示「有新版本」 ===== */
 
