@@ -31,7 +31,7 @@ object AlertOverlay {
     fun canShow(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
 
     fun show(context: Context, title: String, text: String, roomId: String = "") {
-        android.util.Log.d("DyOverlay", "show called, canDrawOverlays=" + canShow(context))
+        Logx.d("DyOverlay", "show called, canDrawOverlays=" + canShow(context))
         if (!canShow(context)) return
         val app = context.applicationContext
         dismiss()
@@ -92,12 +92,12 @@ object AlertOverlay {
             wm = manager
             dim = dimV
             card = cardV
-            android.util.Log.d("DyOverlay", "overlay added ok")
+            Logx.d("DyOverlay", "overlay added ok")
             val r = Runnable { dismiss() }
             autoDismiss = r
             ui.postDelayed(r, 30000)  // 30 秒没人理自动收掉
         } catch (e: Exception) {
-            android.util.Log.e("DyOverlay", "addView failed", e)
+            Logx.e("DyOverlay", "addView failed", e)
             // 被 ROM 拦了就算了，横幅兜底
         }
     }

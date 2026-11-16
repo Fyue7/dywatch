@@ -32,10 +32,13 @@ object LiveProbe {
     private const val MAX_BYTES = 600 * 1024
 
     private val roomIdRe = Regex("""roomId="(\d{6,})"""")
+    // 抖音号只可能是字母/数字/下划线/点/横线；其它字符一律不拼进 URL（防止把请求指到别的路径）
+    private val idRe = Regex("[A-Za-z0-9_.-]{1,64}")
 
     /** 阻塞方法，必须在工作线程调用 */
     fun probe(uniqueId: String): State {
         if (uniqueId.isBlank()) return State(false, false, "", "没有抖音号，无法原生探测")
+        if (!idRe.matches(uniqueId)) return State(false, false, "", "抖音号含非法字符，退回签名路径")
         return try {
             val conn = URL("https://live.douyin.com/$uniqueId").openConnection() as HttpURLConnection
             conn.instanceFollowRedirects = true
@@ -71,7 +74,7 @@ object LiveProbe {
                 conn.disconnect()
             }
         } catch (t: Throwable) {
-            if (BuildConfig.DEBUG) android.util.Log.w("DyProbe", "probe failed: " + t.message)
+            if (BuildConfig.DEBUG) Logx.w("DyProbe", "probe failed: " + t.message)
             State(false, false, "", t.message ?: t.javaClass.simpleName)
         }
     }

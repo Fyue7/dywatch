@@ -93,7 +93,7 @@ class Store(context: Context) {
             if (accounts.isNotEmpty()) save()
         } catch (e: Exception) {
             // 没有这个资产是正常情况（公开版从零开始），不是错误
-            if (BuildConfig.DEBUG) android.util.Log.d("DyWatch", "no seed asset: " + e.message)
+            if (BuildConfig.DEBUG) Logx.d("DyWatch", "no seed asset: " + e.message)
         }
     }
 
@@ -283,7 +283,7 @@ class Store(context: Context) {
             atomicWrite(file, root.toString())
         } catch (e: Exception) {
             // 存不下不崩，但要留声——磁盘满/权限问题不能无声丢数据
-            android.util.Log.w("DyWatch", "store save failed", e)
+            Logx.w("DyWatch", "store save failed", e)
         }
     }
 
@@ -322,7 +322,7 @@ class Store(context: Context) {
             }
             atomicWrite(dailyFile, root.toString())
         } catch (e: Exception) {
-            android.util.Log.w("DyWatch", "daily save failed", e)
+            Logx.w("DyWatch", "daily save failed", e)
         }
     }
 
@@ -346,7 +346,7 @@ class Store(context: Context) {
             bad.renameTo(File(bad.parentFile, "$name.bak." + System.currentTimeMillis()))
         } catch (_: Exception) {
         }
-        android.util.Log.e("DyWatch", "$name corrupt, quarantined as .bak; starting from seed")
+        Logx.e("DyWatch", "$name corrupt, quarantined as .bak; starting from seed")
         try {
             WatchPrefs.setResult(
                 appContext,

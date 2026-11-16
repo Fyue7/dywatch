@@ -82,7 +82,7 @@ object LiveNotify {
             NotificationManagerCompat.from(ctx).notify(notifId, builder.build())
         } catch (e: SecurityException) {
             // 通知权限被撤时别把服务带崩：开播提醒发不出去，但监控本身要活着
-            if (BuildConfig.DEBUG) android.util.Log.w("DyNotify", "notify denied", e)
+            if (BuildConfig.DEBUG) Logx.w("DyNotify", "notify denied", e)
         }
     }
 
@@ -112,7 +112,7 @@ object LiveNotify {
         try {
             NotificationManagerCompat.from(ctx).notify(notifId, n)
         } catch (e: SecurityException) {
-            if (BuildConfig.DEBUG) android.util.Log.w("DyNotify", "warn notify denied", e)
+            if (BuildConfig.DEBUG) Logx.w("DyNotify", "warn notify denied", e)
         }
     }
 }

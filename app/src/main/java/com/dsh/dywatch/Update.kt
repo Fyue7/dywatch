@@ -187,7 +187,7 @@ object Update {
 
     private fun humanError(t: Throwable): String {
         val m = t.message ?: t.javaClass.simpleName
-        if (BuildConfig.DEBUG) android.util.Log.w("DyUpdate", "update failed", t)
+        if (BuildConfig.DEBUG) Logx.w("DyUpdate", "update failed", t)
         return when {
             m.contains("HTTP 404") -> "仓库里还没有发布任何 release"
             m.contains("HTTP 403") -> "GitHub 限流（403），过一会再试"

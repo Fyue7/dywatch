@@ -133,7 +133,7 @@ class LiveWatchService : Service() {
             lastCheck[a.secUid] = next
         }
         Douyin.setup(web!!, ServiceBridge()) { _, _ ->
-            android.util.Log.d("DyWatch", "page ready")
+            Logx.d("DyWatch", "page ready")
             pageReady = true
             pageReadyFlag = true
             Douyin.startMuteLoop(web!!, ui)
@@ -183,7 +183,7 @@ class LiveWatchService : Service() {
         val store = Store.get(this)
         val mode = forceMode ?: FetchKind.DETECT
         if (BuildConfig.DEBUG) {
-            android.util.Log.d(
+            Logx.d(
                 "DyWatch",
                 "tick: ready=$pageReady busy=${pendingAsked != null} kind=$mode"
             )
@@ -234,7 +234,7 @@ class LiveWatchService : Service() {
         }
         forceMode = null
         pendingKind = mode
-        android.util.Log.d("DyWatch", "fetching ${due.size} accounts kind=$mode")
+        Logx.d("DyWatch", "fetching ${due.size} accounts kind=$mode")
         pendingAsked = due
         // MIUI 允许滑掉前台服务通知：每轮重新贴一次，保证「常驻可见」
         startForeground(2002, buildFgNotification())
@@ -252,7 +252,7 @@ class LiveWatchService : Service() {
         }
     }
 
-    private val watchdog = Runnable {        android.util.Log.d("DyWatch", "watchdog fired")
+    private val watchdog = Runnable {        Logx.d("DyWatch", "watchdog fired")
         if (pendingAsked != null) {
             // JS 挂死（页面异常/被拖死）：重载页面自愈，这批账号等页面好了重试
             pendingAsked = null
@@ -301,7 +301,7 @@ class LiveWatchService : Service() {
         }
         if (!json.startsWith("{\"res") && !json.startsWith("{\"err")) return
         if (BuildConfig.DEBUG) {
-            android.util.Log.d("DyWatch", "result: " + json.take(150).replace("\n", " "))
+            Logx.d("DyWatch", "result: " + json.take(150).replace("\n", " "))
         }
         val now = System.currentTimeMillis()
         val store = Store.get(this)
@@ -312,7 +312,7 @@ class LiveWatchService : Service() {
             // 安全闸门：结果必须答这一批、且是监控清单里的账号——网页伪造的陌生条目直接丢弃
             if (p.secUid !in accepted || store.accounts.none { it.secUid == p.secUid }) {
                 if (BuildConfig.DEBUG) {
-                    android.util.Log.w("DyWatch", "drop unrequested entry " + p.secUid.take(8))
+                    Logx.w("DyWatch", "drop unrequested entry " + p.secUid.take(8))
                 }
                 continue
             }
@@ -447,7 +447,7 @@ class LiveWatchService : Service() {
                         // 探测失败：10 分钟内该号退回签名取数路径，别一直打坏页面
                         nativeBlockedUntil[secUid] = now + 10 * 60 * 1000L
                         lastCheck.remove(secUid)
-                        android.util.Log.w("DyWatch", "native probe failed(" + secUid + "): " + st.note)
+                        Logx.w("DyWatch", "native probe failed(" + secUid.take(8) + "): " + st.note)
                         continue
                     }
                     okN++
@@ -468,7 +468,7 @@ class LiveWatchService : Service() {
                         " · " + SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(now))
                 )
                 if (BuildConfig.DEBUG) {
-                    android.util.Log.d("DyWatch", "native round ok=" + okN + " fail=" + failN)
+                    Logx.d("DyWatch", "native round ok=" + okN + " fail=" + failN)
                 }
                 onStoreUpdated?.invoke()
             }
@@ -494,7 +494,7 @@ class LiveWatchService : Service() {
         WatchPrefs.setBoost(this, secUid, false)  // 开播即复位加速开关
         WatchPrefs.setLastAlert(this, name, System.currentTimeMillis())
         WatchPrefs.setLastAlertRoom(this, roomIdStr)
-        android.util.Log.d("DyWatch", "ALERT fired: " + name + " room=" + roomIdStr)
+        Logx.d("DyWatch", "ALERT fired: " + name + " room=" + roomIdStr)
         // 通知 id 用账号槽位号：稳定、≤4 个账号绝不碰撞；保留段（≤4100）与账号段（5000+）完全分离。
         val slot = store.accounts.indexOfFirst { it.secUid == secUid }
         val notifId = if (slot >= 0) 5000 + slot else 5000 + store.accounts.size
@@ -572,7 +572,7 @@ class LiveWatchService : Service() {
                 }
                 if (host != "www.douyin.com" && !host.endsWith(".douyin.com")) {
                     if (BuildConfig.DEBUG) {
-                        android.util.Log.w("DyWatch", "drop bridge message from non-douyin document: $host")
+                        Logx.w("DyWatch", "drop bridge message from non-douyin document: $host")
                     }
                     return@post
                 }

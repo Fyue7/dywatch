@@ -31,12 +31,12 @@ object UiWallpaper {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             val s1 = ctx.contentResolver.openInputStream(uri)
             if (s1 == null) {
-                android.util.Log.e("DyWatch", "wp: bounds stream null")
+                Logx.e("DyWatch", "wp: bounds stream null")
                 return false
             }
             s1.use { BitmapFactory.decodeStream(it, null, bounds) }
             if (bounds.outWidth <= 0) {
-                android.util.Log.e("DyWatch", "wp: bounds unreadable (${bounds.outWidth}x${bounds.outHeight} mime=${bounds.outMimeType})")
+                Logx.e("DyWatch", "wp: bounds unreadable (${bounds.outWidth}x${bounds.outHeight} mime=${bounds.outMimeType})")
                 return false
             }
             var sample = 1
@@ -46,25 +46,25 @@ object UiWallpaper {
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             val s2 = ctx.contentResolver.openInputStream(uri)
             if (s2 == null) {
-                android.util.Log.e("DyWatch", "wp: decode stream null")
+                Logx.e("DyWatch", "wp: decode stream null")
                 return false
             }
             val src = s2.use { BitmapFactory.decodeStream(it, null, opts) }
             if (src == null) {
-                android.util.Log.e("DyWatch", "wp: decode null sample=$sample")
+                Logx.e("DyWatch", "wp: decode null sample=$sample")
                 return false
             }
             val out = file(ctx).outputStream()
             val compressed = out.use { src.compress(Bitmap.CompressFormat.JPEG, 85, it) }
             if (!compressed) {
-                android.util.Log.e("DyWatch", "wp: compress returned false")
+                Logx.e("DyWatch", "wp: compress returned false")
                 return false
             }
-            android.util.Log.d("DyWatch", "wp: saved " + file(ctx).length() + " bytes (" + src.width + "x" + src.height + ")")
+            Logx.d("DyWatch", "wp: saved " + file(ctx).length() + " bytes (" + src.width + "x" + src.height + ")")
             src.recycle()
             true
         } catch (e: Exception) {
-            android.util.Log.e("DyWatch", "wp: set failed", e)
+            Logx.e("DyWatch", "wp: set failed", e)
             false
         }
     }
