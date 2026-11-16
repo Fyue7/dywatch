@@ -117,6 +117,15 @@ object WatchPrefs {
         e.apply()
     }
 
+    /* ===== 上一次看到的直播状态：跨进程重启保留，避免重启后又把同一场直播报一次 ===== */
+
+    fun liveState(ctx: Context, secUid: String): Pair<Boolean, Long> =
+        Pair(sp(ctx).getBoolean("live_$secUid", false), sp(ctx).getLong("livets_$secUid", 0))
+
+    fun setLiveState(ctx: Context, secUid: String, live: Boolean, ts: Long) {
+        sp(ctx).edit().putBoolean("live_$secUid", live).putLong("livets_$secUid", ts).apply()
+    }
+
     /* ===== 更新检查留痕：体检页显示，主界面状态行提示「有新版本」 ===== */
 
     fun lastUpdateCheck(ctx: Context): Long = sp(ctx).getLong("updateCheckedAt", 0)

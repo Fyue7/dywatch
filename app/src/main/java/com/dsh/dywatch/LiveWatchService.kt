@@ -81,6 +81,12 @@ class LiveWatchService : Service() {
     private val failCount = HashMap<String, Int>()
     // 直播状态边沿（提醒用），与样本库解耦：记数关掉时不写样本，但开播边沿照样判得准
     private val lastLiveState = HashMap<String, Boolean>()
+    // 原生探测（不走 WebView）失败后的冷却：这段时间该号退回签名取数路径
+    private val nativeBlockedUntil = HashMap<String, Long>()
+    private val probePool: java.util.concurrent.ExecutorService =
+        java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "dywatch-liveprobe").apply { isDaemon = true }
+        }
     // 数据闸门拒收期的直播报警边沿（独立于冻结基线，详见 handleResult 的 50% 闸门注释）
     private val gatedLiveAlerted = HashSet<String>()
 
@@ -191,7 +197,7 @@ class LiveWatchService : Service() {
             return
         }
         val now = System.currentTimeMillis()
-        val due = when (mode) {
+        var due: List<String> = when (mode) {
             // 监控自动轮询：只取「监控」开着的号，按各自间隔；结果只用于判定开播
             FetchKind.DETECT -> store.accounts.filter {
                 if (!WatchPrefs.isMonitored(this, it.secUid)) return@filter false
@@ -201,6 +207,19 @@ class LiveWatchService : Service() {
             }.map { it.secUid }
             // 手点刷新 / 0 点快照：所有人，不看监控开关、不看间隔
             else -> store.accounts.map { it.secUid }
+        }
+        // 监控检测优先走「原生探测」：live.douyin.com/<抖音号> 页面里就有 roomId，不需要签名、不需要 WebView。
+        // 探不通（网络/页面结构变了）的号在 10 分钟内退回签名取数路径。
+        if (mode == FetchKind.DETECT && due.isNotEmpty()) {
+            val accounts = store.accounts.filter { it.secUid in due }
+            val nativeList = accounts.filter {
+                it.uniqueId.isNotBlank() && now >= (nativeBlockedUntil[it.secUid] ?: 0L)
+            }
+            if (nativeList.isNotEmpty()) {
+                nativeList.forEach { lastCheck[it.secUid] = now }  // 先占位，避免同一轮重复探测
+                runNativeRound(nativeList)
+            }
+            due = accounts.filter { it !in nativeList }.map { it.secUid }
         }
         if (due.isEmpty()) {
             if (mode != FetchKind.DETECT) {
@@ -326,8 +345,9 @@ class LiveWatchService : Service() {
             }
             if (good) {
                 val isLive = p.live > 0 || p.roomId > 0
-                val prevLive = lastLiveState[p.secUid] ?: wasLive
+                val prevLive = if (lastLiveState.containsKey(p.secUid)) lastLiveState[p.secUid]!! else wasLive
                 lastLiveState[p.secUid] = isLive
+                WatchPrefs.setLiveState(this, p.secUid, isLive, now)
                 when (kind) {
                     // 监控轮询：只为判定开播，一个数字都不写
                     FetchKind.DETECT -> if (!prevLive && isLive) fireAlert(p)
@@ -413,25 +433,76 @@ class LiveWatchService : Service() {
         onStoreUpdated?.invoke()
     }
 
-    private fun fireAlert(p: ParsedProfile) {
+    /** 原生探测一轮：live.douyin.com/<抖音号> 页面里找 roomId，找到就是正在播（顺带拿到精确 room_id） */
+    private fun runNativeRound(accounts: List<Account>) {
+        probePool.execute {
+            val results = accounts.map { a -> a.secUid to LiveProbe.probe(a.uniqueId) }
+            ui.post {
+                val now = System.currentTimeMillis()
+                var okN = 0
+                var failN = 0
+                for ((secUid, st) in results) {
+                    if (!st.ok) {
+                        failN++
+                        // 探测失败：10 分钟内该号退回签名取数路径，别一直打坏页面
+                        nativeBlockedUntil[secUid] = now + 10 * 60 * 1000L
+                        lastCheck.remove(secUid)
+                        android.util.Log.w("DyWatch", "native probe failed(" + secUid + "): " + st.note)
+                        continue
+                    }
+                    okN++
+                    val prev = prevLive(secUid, now)
+                    lastLiveState[secUid] = st.live
+                    WatchPrefs.setLiveState(this, secUid, st.live, now)
+                    if (st.live && !prev) {
+                        // 探测结果自带精确 room_id，深链比签名结果还准
+                        fireAlertBy(secUid, "", st.roomId)
+                    }
+                    lastCheck[secUid] = now
+                }
+                WatchPrefs.setLastRound(this, now)
+                if (okN > 0) WatchPrefs.setLastSuccess(this, now)
+                WatchPrefs.setDetectResult(
+                    this,
+                    "原生探测 " + okN + " 个" + (if (failN > 0) "，退回签名 " + failN + " 个" else "") +
+                        " · " + SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(now))
+                )
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("DyWatch", "native round ok=" + okN + " fail=" + failN)
+                }
+                onStoreUpdated?.invoke()
+            }
+        }
+    }
+
+    /** 上一次的直播状态：内存优先；进程刚重启时从持久层读（超过 30 分钟的旧状态视为未知 = 当作没在播） */
+    private fun prevLive(secUid: String, now: Long): Boolean {
+        lastLiveState[secUid]?.let { return it }
+        val (v, ts) = WatchPrefs.liveState(this, secUid)
+        return if (ts > 0 && now - ts <= 30 * 60 * 1000L) v else false
+    }
+
+    private fun fireAlert(p: ParsedProfile) = fireAlertBy(p.secUid, p.nickname, p.roomIdStr)
+
+    private fun fireAlertBy(secUid: String, fallbackName: String, roomIdStr: String) {
         // 监控开关关掉的号：即使被「刷新」顺手取到了数据，也不许开播提醒（开关的含义就在这）
-        if (!WatchPrefs.isMonitored(this, p.secUid)) return
+        if (!WatchPrefs.isMonitored(this, secUid)) return
         val store = Store.get(this)
-        val name = store.accounts.firstOrNull { it.secUid == p.secUid }?.nickname ?: p.nickname
+        val name = store.accounts.firstOrNull { it.secUid == secUid }?.nickname
+            ?: fallbackName.ifBlank { getString(R.string.app_name) }
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        WatchPrefs.setBoost(this, p.secUid, false)  // 开播即复位加速开关
+        WatchPrefs.setBoost(this, secUid, false)  // 开播即复位加速开关
         WatchPrefs.setLastAlert(this, name, System.currentTimeMillis())
-        WatchPrefs.setLastAlertRoom(this, p.roomIdStr)
-        android.util.Log.d("DyWatch", "ALERT fired: $name room=${p.roomIdStr}")
+        WatchPrefs.setLastAlertRoom(this, roomIdStr)
+        android.util.Log.d("DyWatch", "ALERT fired: " + name + " room=" + roomIdStr)
         // 通知 id 用账号槽位号：稳定、≤4 个账号绝不碰撞；保留段（≤4100）与账号段（5000+）完全分离。
-        // （旧哈希桶方案 2048 个桶里含演示号 4001 和三类告警 4002-4004，有互顶隐患）
-        val slot = store.accounts.indexOfFirst { it.secUid == p.secUid }
+        val slot = store.accounts.indexOfFirst { it.secUid == secUid }
         val notifId = if (slot >= 0) 5000 + slot else 5000 + store.accounts.size
         LiveNotify.post(
-            this, "$name 开播了", "刚刚开播 · $time",
-            isDemo = false, notifId = notifId, room = p.roomIdStr
+            this, name + " 开播了", "刚刚开播 · " + time,
+            isDemo = false, notifId = notifId, room = roomIdStr
         )
-        AlertOverlay.show(this, "$name 开播了", "点「去看直播」直达直播间 · $time", p.roomIdStr)
+        AlertOverlay.show(this, name + " 开播了", "点「去看直播」直达直播间 · " + time, roomIdStr)
     }
 
     /** 抖音号解析:签名搜索接口,结果走同一个 JS 桥回来 */
