@@ -90,7 +90,7 @@ class AccountAdapter(
 
         holder.name.text = a.nickname + "  @" + a.uniqueId
 
-        // ========== 两块信息，两个来源，互不引用 ==========
+        // [DOMAIN:MIXED] ========== 两块信息，两个来源，互不引用 ==========
         // 监控域（是否在播 / 房间号 / 提醒）：只认检测轮写下的状态，绝不看样本
         // 数据域（粉丝数 / 涨跌 / 赞 / 上次取数时间）：只认刷新写下的样本，绝不算在播
         val (watchLive, watchTs) = WatchPrefs.liveState(ctx, a.secUid)
@@ -110,6 +110,7 @@ class AccountAdapter(
 
         val cur = store.latest(a.secUid)
         if (cur == null) {
+            // [DOMAIN:DATA] 没有样本时，只说数据域的事
             holder.follower.text = "—"
             holder.delta.text = "还没有取过数"
             holder.delta.setTextColor(0xFF665E80.toInt())
@@ -137,7 +138,7 @@ class AccountAdapter(
             holder.delta.setTextColor(0xFF665E80.toInt())
         }
 
-        // 数据域只说数据：赞 + 上次取数时间（在播与否不写在这一行）
+        // [DOMAIN:DATA] 数据域只说数据：赞 + 上次取数时间（在播与否不写在这一行）
         holder.meta.text = "赞 " + String.format(Locale.getDefault(), "%,d", cur.likes) +
             " · 上次取数 " + num.format(Date(cur.ts))
     }

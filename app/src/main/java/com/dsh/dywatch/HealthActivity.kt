@@ -151,7 +151,7 @@ class HealthActivity : AppCompatActivity() {
             if (!LiveWatchService.running) "⚠️" else mark(pageOk), "签名页面",
             when {
                 !LiveWatchService.running -> "服务没跑，页面状态未知"
-                pageOk -> "WebView 页面就绪，签名器可用"
+                pageOk -> "WebView 页面就绪，签名器可用（只服务粉丝数与 0 点快照，开播检测不走它）"
                 else -> "页面未就绪（刚启动/正在重载自愈；持续这样 = 接口或页面出事了）"
             }
         )))
@@ -163,8 +163,8 @@ class HealthActivity : AppCompatActivity() {
         val lastRefresh = WatchPrefs.lastRefresh(this)
         list.addView(row(Item(
             "ℹ️", "粉丝数（手点刷新）",
-            (WatchPrefs.refreshResult(this) ?: "还没有刷新过 · 点右边取一次")
-                .let { if (lastRefresh > 0) it else it },
+            (WatchPrefs.refreshResult(this) ?: "还没有刷新过 · 点右边取一次") +
+                (WatchPrefs.dataIssue(this)?.let { " · " + it } ?: ""),
             "刷新",
             { triggerRefresh() }
         )))
@@ -179,7 +179,8 @@ class HealthActivity : AppCompatActivity() {
         list.addView(row(Item(
             if (snapN == store.accounts.size) "✅" else "⚠️", "今日 0 点快照",
             if (snapN == store.accounts.size) "${store.accounts.size} 个号今日快照都已采"
-            else "已采 $snapN/${store.accounts.size} 号（0 点闹钟采；缺的手点刷新会补）"
+            else "已采 $snapN/${store.accounts.size} 号（0 点闹钟采；缺的手点刷新会补）" +
+                (WatchPrefs.snapshotResult(this)?.let { " · " + it } ?: "")
         )))
 
         val alertName = WatchPrefs.lastAlertName(this)

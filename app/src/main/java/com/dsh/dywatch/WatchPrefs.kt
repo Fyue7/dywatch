@@ -79,11 +79,19 @@ object WatchPrefs {
     fun lastAlertRoom(ctx: Context): String? = sp(ctx).getString("lastAlertRoom", null)
 
     /** 本地数据文件损坏等一次性提示（体检页/状态行会看到） */
-    fun setResult(ctx: Context, text: String) {
-        sp(ctx).edit().putString("lastResult", text).apply()
+    /** 0 点快照结果（数据域）—— 与开播监控无关 */
+    fun setSnapshotResult(ctx: Context, text: String) {
+        sp(ctx).edit().putString("snapshotResult", text).apply()
     }
 
-    fun lastResult(ctx: Context): String? = sp(ctx).getString("lastResult", null)
+    fun snapshotResult(ctx: Context): String? = sp(ctx).getString("snapshotResult", null)
+
+    /** 本地数据文件的问题（数据域）：只影响粉丝数历史，不影响开播检测 */
+    fun setDataIssue(ctx: Context, text: String) {
+        sp(ctx).edit().putString("dataIssue", text).apply()
+    }
+
+    fun dataIssue(ctx: Context): String? = sp(ctx).getString("dataIssue", null)
 
     // 失败退避状态持久化:进程被杀重启后,风控冷却不归零
     fun failState(ctx: Context, secUid: String): Pair<Int, Long> =

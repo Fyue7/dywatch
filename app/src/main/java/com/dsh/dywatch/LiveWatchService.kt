@@ -88,7 +88,6 @@ class LiveWatchService : Service() {
             Thread(r, "dywatch-liveprobe").apply { isDaemon = true }
         }
     // 数据闸门拒收期的直播报警边沿（独立于冻结基线，详见 handleResult 的 50% 闸门注释）
-    private val gatedLiveAlerted = HashSet<String>()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -105,8 +104,8 @@ class LiveWatchService : Service() {
         return builder
             .setContentTitle(WatchPrefs.headerTitle(this) ?: getString(R.string.header_title_default))
             .setContentText(
-                if (alertN > 0) "开播监控 $alertN 个 · 60秒/轮（加速 15秒）· 粉丝数点「刷新」"
-                else "开播提醒全关 · 粉丝数点「刷新」取"
+                if (alertN > 0) "开播监控 $alertN 个 · 每 60 秒检测（加速 15 秒）"
+                else "开播监控全关 · 不检测开播"
             )
             .setSmallIcon(R.drawable.ic_notify)
             .setLargeIcon(bear)
@@ -243,12 +242,13 @@ class LiveWatchService : Service() {
         ui.postDelayed(watchdog, 25000)
     }
 
-    /** 取数过程中的说明：手点刷新的说明写进「刷新结果」（主界面第一行），其余写进一次性提示 */
+    // [DOMAIN:DATA]
+    /** 取数过程中的说明：手点刷新的说明写进「刷新结果」（主界面第一行），快照写进快照结果 */
     private fun note(mode: FetchKind, text: String) {
         if (mode == FetchKind.REFRESH) {
             WatchPrefs.setRefresh(this, text, WatchPrefs.lastRefresh(this))
         } else {
-            WatchPrefs.setResult(this, text)
+            WatchPrefs.setSnapshotResult(this, text)
         }
     }
 
@@ -259,16 +259,14 @@ class LiveWatchService : Service() {
             pageReady = false
             pageReadyFlag = false
             stallCount++
-            WatchPrefs.setResult(
-                this, "页面无响应，已自动重载（连续 $stallCount 次）· " +
-                    SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-            )
+            // 页面卡住只影响数据域（粉丝数刷新 / 0 点快照）：不写任何状态文案，靠告警 + 体检页那一行体现
             onStoreUpdated?.invoke()
-            // 连续空转 = 提醒链路可能已经瞎了，必须喊人：第 2 次喊，之后每 +4 次再喊
+            // 连续空转 = 数据域会失败，喊人：第 2 次喊，之后每 +4 次再喊
             if (stallCount == 2 || (stallCount > 2 && (stallCount - 2) % 4 == 0)) {
                 LiveNotify.postWarn(
-                    this, "开播监控页面异常",
+                    this, "取数页面异常（粉丝数刷新用）",
                     "签名页面连续 $stallCount 次无响应，已自动重载在自救；" +
+                        "粉丝数刷新与 0 点快照会失败，开播检测不受影响；" +
                         "若一直响这条，打开 App 点「解验证」检查",
                     4003
                 )
@@ -316,14 +314,31 @@ class LiveWatchService : Service() {
                 }
                 continue
             }
+            // 数据域基线：样本只用于「这次数字可不可信」，绝不当作在播状态的来源
             val last = store.latest(p.secUid)
-            // 漏报防线：旧样本不算「上次在播」——若上次采样已经隔了 30 分钟以上
-            // （比如昨天下播前的样本），今天她刚开播必须照报，不能被旧状态压住
-            val wasLive = if (last != null && now - last.ts <= 30 * 60 * 1000L) {
-                last.live > 0 || last.roomId > 0
-            } else false
+
+            // [DOMAIN:MONITOR] ===== 监控域（DETECT）：只判定开播、只发提醒，一个数字都不写 =====
+            if (kind == FetchKind.DETECT) {
+                if (!p.ok) {
+                    failN++
+                    markFetchFailed(p.secUid, now, p.err)
+                    continue
+                }
+                val isLive = p.live > 0 || p.roomId > 0
+                val wasLiveBefore = prevLive(p.secUid, now)
+                lastLiveState[p.secUid] = isLive
+                WatchPrefs.setLiveState(this, p.secUid, isLive, now, p.roomIdStr)
+                if (!wasLiveBefore && isLive) fireAlert(p)
+                failCount.remove(p.secUid)
+                WatchPrefs.clearFailState(this, p.secUid)
+                lastCheck[p.secUid] = now
+                okN++
+                continue
+            }
+
+            // [DOMAIN:DATA] ===== 数据域（REFRESH / SNAPSHOT）：只写数字，绝口不提在播与否 =====
             // 数据合理性防线：解析坏/暴跌的数据拒收，按失败计——
-            // 抖音哪天改字段名，绝不能把 0 粉丝/未开播静默写进库污染曲线
+            // 抖音哪天改字段名，绝不能把 0 粉丝静默写进库污染曲线
             var good = p.ok
             var badNote = p.err
             if (good && p.follower <= 0L) {
@@ -333,79 +348,42 @@ class LiveWatchService : Service() {
             if (good && last != null && last.follower > 0 && p.follower < last.follower / 2) {
                 good = false
                 badNote = "单轮跌超 50%，数据可疑已拒收"
-                // 直播状态与粉丝数无关，不许被数据闸门连坐（漏报防线优先）。
-                // 边沿判定不能用 wasLive：拒收期里基线冻结，wasLive 老化出 30 分钟窗口后恒 false，
-                // 会每轮重复响警报——用独立状态做 0→1 边沿，拒收期内每场直播只报一次，下播即复位
-                val liveNow = p.live > 0 || p.roomId > 0
-                if (liveNow) {
-                    if (gatedLiveAlerted.add(p.secUid)) fireAlert(p)
-                } else {
-                    gatedLiveAlerted.remove(p.secUid)
-                }
             }
-            if (good) {
-                val isLive = p.live > 0 || p.roomId > 0
-                val prevLive = if (lastLiveState.containsKey(p.secUid)) lastLiveState[p.secUid]!! else wasLive
-                lastLiveState[p.secUid] = isLive
-                WatchPrefs.setLiveState(this, p.secUid, isLive, now, p.roomIdStr)
-                when (kind) {
-                    // 监控轮询：只为判定开播，一个数字都不写
-                    FetchKind.DETECT -> if (!prevLive && isLive) fireAlert(p)
-                    // 手点刷新：写样本（更新粉丝数与卡片），当天缺快照就补一条；不报警
-                    FetchKind.REFRESH -> {
-                        store.record(
-                            secUid = p.secUid,
-                            nickname = p.nickname,
-                            uniqueId = p.uniqueId,
-                            follower = p.follower,
-                            following = p.following,
-                            likes = p.likes,
-                            live = p.live,
-                            roomId = p.roomId,
-                            ts = now,
-                            roomIdStr = p.roomIdStr
-                        )
-                        if (!store.hasDaily(p.secUid, today)) {
-                            store.putDaily(p.secUid, today, now, p.follower, backfill = true)
-                        }
-                    }
-                    // 0 点快照：只写当日快照；不写样本、不报警
-                    FetchKind.SNAPSHOT -> if (!store.hasDaily(p.secUid, today)) {
-                        store.putDaily(p.secUid, today, now, p.follower, backfill = false)
-                    }
-                }
-                failCount.remove(p.secUid)
-                gatedLiveAlerted.remove(p.secUid)  // 恢复正常采样后，清掉拒收期的报警边沿记录
-                WatchPrefs.clearFailState(this, p.secUid)
-                lastCheck[p.secUid] = now
-                okN++
-            } else {
+            if (!good) {
                 failN++
-                // 失败退避：连败次数越多，下次尝试推得越远（+5/10/15 分钟，封顶 30 分钟），
-                // 给抖音风控冷却时间，避免越失败越打越勤。状态持久化：进程重启后冷却不归零
-                val fails = (failCount[p.secUid] ?: 0) + 1
-                failCount[p.secUid] = fails
-                val nextCheck = now + (fails * 300L * 1000L).coerceAtMost(30L * 60L * 1000L)
-                lastCheck[p.secUid] = nextCheck
-                WatchPrefs.setFailState(this, p.secUid, fails, nextCheck)
-                // 漏报防线：静默失败 = 变相漏提醒。连败必须反复喊人（3 次喊，之后每 +7 次再喊），
-                // 错过一条通知不能等于永远沉默
-                if (fails == 3 || (fails > 3 && (fails - 3) % 7 == 0)) {
-                    // 网页侧的原始错误码翻成人话再进通知（deadline/no-signer/js:...）
-                    val note = when (badNote) {
-                        "deadline" -> "取数超时"
-                        "no-signer" -> "签名页面未就绪"
-                        else -> badNote
-                    }
-                    LiveNotify.postWarn(
-                        this, "开播监控异常",
-                        "连续 $fails 次取数失败" +
-                            (if (note.isNotEmpty()) "（$note）" else "（疑似风控）") +
-                            "，现在可能漏提醒；打开 App 点「解验证」恢复",
-                        4002
-                    )
-                }
+                markFetchFailed(p.secUid, now, badNote)
+                continue
             }
+            when (kind) {
+                // 手点刷新：写样本，当天缺快照就补一条。
+                // 样本里不存任何在播信息（live/roomId 固定 0）——那是监控域的字段，数据域不碰
+                FetchKind.REFRESH -> {
+                    store.record(
+                        secUid = p.secUid,
+                        nickname = p.nickname,
+                        uniqueId = p.uniqueId,
+                        follower = p.follower,
+                        following = p.following,
+                        likes = p.likes,
+                        live = 0,
+                        roomId = 0,
+                        ts = now,
+                        roomIdStr = ""
+                    )
+                    if (!store.hasDaily(p.secUid, today)) {
+                        store.putDaily(p.secUid, today, now, p.follower, backfill = true)
+                    }
+                }
+                // 0 点快照：只写当日快照
+                FetchKind.SNAPSHOT -> if (!store.hasDaily(p.secUid, today)) {
+                    store.putDaily(p.secUid, today, now, p.follower, backfill = false)
+                }
+                FetchKind.DETECT -> Unit  // 上面已 continue，走不到这里
+            }
+            failCount.remove(p.secUid)
+            WatchPrefs.clearFailState(this, p.secUid)
+            lastCheck[p.secUid] = now
+            okN++
         }
         store.save()
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(now))
@@ -425,7 +403,7 @@ class LiveWatchService : Service() {
                 "已刷新 $okN 个" + (if (failN > 0) "，失败 $failN 个" else "") + " · " + time,
                 now
             )
-            FetchKind.SNAPSHOT -> WatchPrefs.setResult(
+            FetchKind.SNAPSHOT -> WatchPrefs.setSnapshotResult(
                 this,
                 "0 点快照已采 $okN 个" + (if (failN > 0) "，失败 $failN 个" else "") + " · " + time
             )
@@ -433,6 +411,32 @@ class LiveWatchService : Service() {
         onStoreUpdated?.invoke()
     }
 
+    /**
+     * 取数失败：退避 + 反复喊人。
+     * 两个域各说各的话：监控轮喊「开播监控异常」，数据轮不弹通知（刷新是你手点的，状态行会显示粉数）
+     */
+    private fun markFetchFailed(secUid: String, now: Long, rawNote: String) {
+        val fails = (failCount[secUid] ?: 0) + 1
+        failCount[secUid] = fails
+        val nextCheck = now + (fails * 300L * 1000L).coerceAtMost(30L * 60L * 1000L)
+        lastCheck[secUid] = nextCheck
+        WatchPrefs.setFailState(this, secUid, fails, nextCheck)
+        val note = when (rawNote) {
+            "deadline" -> "取数超时"
+            "no-signer" -> "签名页面未就绪"
+            else -> rawNote
+        }
+        if (pendingKind == FetchKind.DETECT && (fails == 3 || (fails > 3 && (fails - 3) % 7 == 0))) {
+            LiveNotify.postWarn(
+                this, "开播监控异常",
+                "连续 " + fails + " 次检测失败" +
+                    (if (note.isNotEmpty()) "（" + note + "）" else "（疑似风控）") +
+                    "，现在可能漏提醒；打开 App 点「解验证」恢复",
+                4002
+            )
+        }
+    }
+    // [DOMAIN:MONITOR]
     /** 原生探测一轮：live.douyin.com/<抖音号> 页面里找 roomId，找到就是正在播（顺带拿到精确 room_id） */
     private fun runNativeRound(accounts: List<Account>) {
         probePool.execute {
@@ -475,6 +479,7 @@ class LiveWatchService : Service() {
         }
     }
 
+    // [DOMAIN:MONITOR]
     /** 上一次的直播状态：内存优先；进程刚重启时从持久层读（超过 30 分钟的旧状态视为未知 = 当作没在播） */
     private fun prevLive(secUid: String, now: Long): Boolean {
         lastLiveState[secUid]?.let { return it }
@@ -484,6 +489,7 @@ class LiveWatchService : Service() {
 
     private fun fireAlert(p: ParsedProfile) = fireAlertBy(p.secUid, p.nickname, p.roomIdStr)
 
+    // [DOMAIN:MONITOR]
     private fun fireAlertBy(secUid: String, fallbackName: String, roomIdStr: String) {
         // 监控开关关掉的号：即使被「刷新」顺手取到了数据，也不许开播提醒（开关的含义就在这）
         if (!WatchPrefs.isMonitored(this, secUid)) return

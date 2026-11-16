@@ -348,7 +348,7 @@ class Store(context: Context) {
         }
         Logx.e("DyWatch", "$name corrupt, quarantined as .bak; starting from seed")
         try {
-            WatchPrefs.setResult(
+            WatchPrefs.setDataIssue(
                 appContext,
                 "本地数据文件损坏已留底(.bak)，历史从种子重新开始 · " +
                     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())

@@ -32,7 +32,7 @@ android {
         applicationId = if (personalBuild) "com.dsh.dywatch" else "com.dsh.dywatch.oss"
         minSdk = 24
         targetSdk = 34
-        versionCode = 29
+        versionCode = 30
         versionName = buildVersionName
 
         resValue("string", "app_name", if (personalBuild) personalName else "dywatch")
