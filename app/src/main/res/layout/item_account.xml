@@ -69,6 +69,14 @@
             android:textColor="@color/ink_3"
             android:textSize="12sp" />
 
+        <!-- 监控域：只反映「盯不盯这个号开播」，与上面的粉丝数完全无关 -->
+        <TextView
+            android:id="@+id/tv_watch_state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/ink_2"
+            android:textSize="12sp" />
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

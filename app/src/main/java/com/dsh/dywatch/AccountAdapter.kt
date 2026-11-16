@@ -35,6 +35,7 @@ class AccountAdapter(
         val follower: TextView = view.findViewById(R.id.tv_follower)
         val delta: TextView = view.findViewById(R.id.tv_delta)
         val meta: TextView = view.findViewById(R.id.tv_meta)
+        val watchState: TextView = view.findViewById(R.id.tv_watch_state)
     }
 
     private val num = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
@@ -89,28 +90,30 @@ class AccountAdapter(
 
         holder.name.text = a.nickname + "  @" + a.uniqueId
 
-        val stateText = buildList {
-            if (!monitored) add("监控已停")
-            if (monitored && boosted) add("15秒加速")
-        }.joinToString(" · ")
+        // ========== 两块信息，两个来源，互不引用 ==========
+        // 监控域（是否在播 / 房间号 / 提醒）：只认检测轮写下的状态，绝不看样本
+        // 数据域（粉丝数 / 涨跌 / 赞 / 上次取数时间）：只认刷新写下的样本，绝不算在播
+        val (watchLive, watchTs) = WatchPrefs.liveState(ctx, a.secUid)
+        val watchFresh = watchTs > 0 && System.currentTimeMillis() - watchTs <= 30 * 60 * 1000L
+        val isLive = monitored && watchFresh && watchLive
+        val liveRoom = if (isLive) WatchPrefs.liveRoom(ctx, a.secUid) else ""
+
+        holder.liveBadge.visibility = if (isLive) View.VISIBLE else View.GONE
+        holder.watchState.text = when {
+            !monitored -> "监控未开 · 不检测开播"
+            isLive -> "监控中 · 检测到正在直播" + (if (boosted) " · 15 秒加速" else "")
+            watchFresh -> "监控中 · 当前未开播" + (if (boosted) " · 15 秒加速" else "")
+            else -> "监控中 · 等待下一轮检测" + (if (boosted) " · 15 秒加速" else "")
+        }
+        holder.goLive.isEnabled = isLive
+        holder.goLive.setOnClickListener { if (isLive) DeepLink.openLiveRoom(ctx, liveRoom) }
 
         val cur = store.latest(a.secUid)
-        // 「直播中」跟事件走，不跟数字走：监控检测每轮都会把是否在播记进 prefs（30 分钟内有效），
-        // 这里优先用它，样本里的 live 只当兜底——否则下播后要等到下次手点刷新，标记才会消失。
-        val ctxForLive = holder.itemView.context
-        val (prefLive, prefTs) = WatchPrefs.liveState(ctxForLive, a.secUid)
-        val liveFresh = prefTs > 0 && System.currentTimeMillis() - prefTs <= 30 * 60 * 1000L
-        val detectedLive = liveFresh && prefLive
-        val detectedRoom = if (detectedLive) WatchPrefs.liveRoom(ctxForLive, a.secUid) else ""
         if (cur == null) {
             holder.follower.text = "—"
             holder.delta.text = "还没有取过数"
             holder.delta.setTextColor(0xFF665E80.toInt())
-            holder.liveBadge.visibility = if (detectedLive) View.VISIBLE else View.GONE
-            holder.goLive.isEnabled = detectedLive
-            holder.goLive.setOnClickListener { if (detectedLive) DeepLink.openLiveRoom(ctxForLive, detectedRoom) }
-            holder.meta.text = (if (detectedLive) "直播中" else "点右上「刷新」取一次") +
-                if (stateText.isEmpty()) "" else " · $stateText"
+            holder.meta.text = "点右上「刷新」取一次"
             return
         }
 
@@ -134,23 +137,9 @@ class AccountAdapter(
             holder.delta.setTextColor(0xFF665E80.toInt())
         }
 
-        val sampleLive = cur.live > 0 || cur.roomId > 0L
-        // 检测到的最新状态优先（窗口 30 分钟），样本里的当兜底
-        val live = if (liveFresh) prefLive else sampleLive
-        holder.liveBadge.visibility = if (live) View.VISIBLE else View.GONE
-
-        // 去看直播:平时灰色禁用,开播点亮;点击深链直达直播间(roomIdStr 缺失时兜底拉起抖音主程序)
-        val liveRoom = if (live && detectedRoom.isNotBlank()) detectedRoom else cur.roomIdStr
-        holder.goLive.isEnabled = live
-        holder.goLive.setOnClickListener {
-            if (live) DeepLink.openLiveRoom(ctx, liveRoom)
-        }
-
-        val liveText = if (live) "直播中" else "未开播"
-        holder.meta.text = liveText +
-            " · 赞 " + String.format(Locale.getDefault(), "%,d", cur.likes) +
-            " · " + num.format(Date(cur.ts)) +
-            if (stateText.isEmpty()) "" else " · $stateText"
+        // 数据域只说数据：赞 + 上次取数时间（在播与否不写在这一行）
+        holder.meta.text = "赞 " + String.format(Locale.getDefault(), "%,d", cur.likes) +
+            " · 上次取数 " + num.format(Date(cur.ts))
     }
 
     /** 开关变了让服务重贴常驻通知（文案反映生效状态） */
